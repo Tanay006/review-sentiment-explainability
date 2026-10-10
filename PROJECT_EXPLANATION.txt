@@ -1,0 +1,786 @@
+REVIEW SENTIMENT AND EXPLAINABILITY
+===================================
+
+Professor Presentation and Project Explanation
+
+
+1. PROJECT TITLE
+-----------------
+
+Review Sentiment and Explainability
+
+This is an NLP-based web application that reads customer reviews and
+classifies them as:
+
+    - Positive
+    - Neutral
+    - Negative
+
+The application also displays the prediction probabilities and explains
+which words influenced the prediction. Users can upload CSV or Excel files,
+classify many reviews at once, filter the results, inspect an individual
+review, and export the results to Excel.
+
+
+2. PROBLEM STATEMENT
+--------------------
+
+Reading and categorizing a large number of customer reviews manually is
+slow and inconsistent. A company may want to know:
+
+    - How many reviews are positive, neutral, or negative?
+    - Which reviews need attention?
+    - How confident is the model?
+    - Which words caused a review to receive its sentiment?
+
+This project solves the problem by combining sentiment analysis with an
+interactive dashboard and explainable AI.
+
+
+3. MAIN OBJECTIVES
+------------------
+
+The project has the following objectives:
+
+    1. Accept review data from CSV and Excel files.
+    2. Automatically identify the review-text column when possible.
+    3. Classify reviews into three sentiment categories.
+    4. Display the probability of each class.
+    5. Handle expressions involving negation and contrast, such as:
+       "The design is nice but the quality is poor."
+    6. Explain individual predictions using LIME.
+    7. Show important global words and phrases for each class.
+    8. Allow filtering, searching, pagination, and Excel export.
+    9. Provide a trainable baseline model for datasets containing ratings.
+
+
+4. TECHNOLOGIES USED
+--------------------
+
+Programming language:
+    Python 3.11 or newer compatible Python environment
+
+User interface:
+    Streamlit
+
+Data handling:
+    Pandas
+    OpenPyXL for Excel files
+    PyArrow for data support used by the Python data ecosystem
+
+Machine learning:
+    Scikit-learn
+    TF-IDF vectorization
+    Logistic Regression
+
+Deep learning and pre-trained NLP:
+    PyTorch
+    Hugging Face Transformers
+    RoBERTa or DistilBERT
+
+Explainable AI:
+    LIME (Local Interpretable Model-agnostic Explanations)
+
+Deployment:
+    Docker
+    Hugging Face Spaces
+    Render or Railway
+
+
+5. PROJECT FILES
+----------------
+
+app.py
+    The Streamlit front end. It creates the sidebar, file uploader, model
+    selection, result table, filters, inspector, charts, and download
+    button.
+
+sentiment_engine.py
+    The machine-learning and NLP engine. It contains preprocessing,
+    sentiment decision rules, the baseline model, transformer model,
+    global feature extraction, and LIME explanation functions.
+
+requirements.txt
+    Lists the exact Python package versions required by the project.
+    Versions are pinned so that the project is more reproducible.
+
+config.toml
+    Streamlit configuration. It defines the dark theme, server settings,
+    and the maximum upload size.
+
+Dockerfile
+    Instructions for building and running the project in a Docker
+    container.
+
+README.md
+    Basic setup, local run, and deployment instructions.
+
+.gitignore
+    Prevents virtual environments, caches, secrets, generated files, and
+    IDE files from being added to Git.
+
+
+6. HOW TO RUN THE PROJECT
+-------------------------
+
+On Windows:
+
+    1. Open a terminal in the project folder.
+    2. Create a virtual environment:
+
+       python -m venv .venv
+
+    3. Activate it:
+
+       .venv\Scripts\activate
+
+    4. Install dependencies:
+
+       pip install -r requirements.txt
+
+    5. Start the application:
+
+       streamlit run app.py
+
+    6. Open the local URL shown by Streamlit, normally:
+
+       http://localhost:8501
+
+The first time a transformer model is selected, its tokenizer and model
+weights are downloaded from Hugging Face. This can take time and requires
+an internet connection. Streamlit caches the loaded model so later uses
+are faster.
+
+
+7. APPLICATION WORKFLOW
+-----------------------
+
+The complete workflow is:
+
+    Upload file
+        |
+        v
+    Read CSV or Excel data
+        |
+        v
+    Select the review-text column
+        |
+        v
+    Select a sentiment model
+        |
+        v
+    Train the baseline, if selected
+        |
+        v
+    Predict sentiment probabilities
+        |
+        v
+    Convert probabilities to sentiment labels
+        |
+        v
+    Display results, confidence, filters, and counts
+        |
+        v
+    Inspect one review with LIME
+        |
+        v
+    Export results to Excel
+
+
+8. EXPLANATION OF app.py
+------------------------
+
+8.1 Imports and page setup
+
+The application imports:
+
+    - io and time from Python
+    - pandas for data tables
+    - Streamlit for the web interface
+    - sentiment_engine as se for the project's ML functions
+
+st.set_page_config() sets the page title, icon, and wide layout.
+The CSS supplied to st.markdown() styles the page and the LIME word
+highlighting box.
+
+
+8.2 Model options
+
+MODEL_OPTIONS contains three choices:
+
+    1. RoBERTa 3-class:
+       cardiffnlp/twitter-roberta-base-sentiment-latest
+
+    2. DistilBERT 2-class:
+       distilbert-base-uncased-finetuned-sst-2-english
+
+    3. Baseline:
+       TF-IDF plus Logistic Regression
+
+RoBERTa directly supports negative, neutral, and positive sentiment.
+DistilBERT is originally a two-class model, so the engine maps its
+negative and positive outputs into the application's three-column
+probability format. The missing neutral probability remains zero for
+that two-class model.
+
+
+8.3 Cached file operations
+
+sheet_names() reads the names of Excel sheets. CSV files do not have
+multiple sheets, so it returns an empty list for CSV files.
+
+read_table() reads:
+
+    - CSV files using pandas.read_csv()
+    - Excel files using pandas.read_excel() and OpenPyXL
+
+The functions use Streamlit caching. If the same file is used again,
+Streamlit can reuse the result instead of reading and parsing it again.
+If a CSV is not UTF-8, the code retries using Latin-1 encoding.
+
+
+8.4 Automatic column detection
+
+detect_text_col() tries common names such as:
+
+    review, review_text, text, comment, content, body, feedback
+
+If no known name is found, it looks for an object/string column and
+selects the one with the greatest average text length.
+
+detect_rating_col() searches for names such as:
+
+    rating, stars, score, overall
+
+This is useful for the baseline model because it can learn sentiment
+labels from 1-to-5 ratings.
+
+
+8.5 Excel output
+
+to_xlsx() writes the result DataFrame into an in-memory BytesIO object.
+The file is not first saved to disk. The user can download it using the
+Streamlit download_button().
+
+
+8.6 Transformer model caching
+
+load_transformer() is decorated with st.cache_resource().
+This means that a downloaded transformer model is loaded once and reused.
+Without this cache, Streamlit reruns could reload the large model repeatedly.
+
+
+8.7 Sidebar controls
+
+The sidebar allows the user to:
+
+    - Select a model.
+    - Set the number of LIME samples from 200 to 2000.
+    - Open the Top global features dialog.
+
+More LIME samples generally give a more stable explanation, but increase
+the processing time.
+
+
+8.8 Upload and classify process
+
+After a file is uploaded:
+
+    1. The file bytes are read.
+    2. The available sheet is selected for Excel files.
+    3. The text column is selected.
+    4. A rating column can be selected for the baseline model.
+
+When the user clicks Classify:
+
+    1. Empty or missing review rows are removed.
+    2. If the baseline and a rating column are selected, ratings are
+       converted to sentiment classes.
+    3. The selected model predicts class probabilities.
+    4. The probabilities are converted to labels.
+    5. The results are stored in st.session_state.
+
+st.session_state is used because Streamlit reruns the script whenever a
+widget changes. It preserves the uploaded results, trained model, and
+selected review across those reruns.
+
+
+8.9 Result display
+
+For every review, the result table contains:
+
+    - Original review data
+    - Predicted Sentiment
+    - P(Negative)
+    - P(Neutral)
+    - P(Positive)
+    - Confidence
+
+Confidence is the highest probability among the available classes.
+
+The interface also displays:
+
+    - Total number of reviews
+    - Number of positive reviews
+    - Number of neutral reviews
+    - Number of negative reviews
+    - Sentiment filter
+    - Text search
+    - Minimum confidence filter
+    - Pagination
+    - Excel export
+
+
+8.10 Review inspector
+
+The user can type or paste one review into the Review tester.
+The application predicts its sentiment and then runs LIME.
+
+The output includes:
+
+    - Predicted sentiment
+    - Probability bar chart
+    - Highlighted review text
+    - LIME word-weight table
+
+Green highlighting means that the word supports a positive prediction.
+Red highlighting means that it supports a negative prediction.
+Gray highlighting means that the word has little influence.
+
+
+9. EXPLANATION OF sentiment_engine.py
+--------------------------------------
+
+9.1 Sentiment labels and decision threshold
+
+LABELS is defined as:
+
+    ["Negative", "Neutral", "Positive"]
+
+The project uses a probability threshold of 0.60 for the negative and
+positive classes.
+
+The decide() function works as follows:
+
+    - Start every result as Neutral.
+    - If P(Negative) is greater than 0.60, label it Negative.
+    - If P(Positive) is greater than 0.60, label it Positive.
+    - Otherwise keep it Neutral.
+
+This threshold makes the system conservative. A review is not classified
+as clearly positive or negative unless the corresponding probability is
+high enough.
+
+
+9.2 Text normalization
+
+expand_contractions() changes forms such as:
+
+    can't  -> cannot
+    won't  -> will not
+    it's   -> it is
+    didn't -> did not
+
+This gives the models a more consistent representation of language.
+It also normalizes curly apostrophes and backticks.
+
+
+9.3 Contrast clause detection
+
+The code recognizes contrast markers such as:
+
+    but, however, although, though, unfortunately, except, yet
+
+split_clauses() separates a review into:
+
+    - lead: the text before the last contrast marker
+    - marker: the contrast word
+    - main: the text after the marker
+
+Example:
+
+    "The product looks good but the quality is poor."
+
+The final clause, "the quality is poor", is treated as the main verdict
+clause because it often expresses the final opinion.
+
+
+9.4 Negation-aware baseline preprocessing
+
+_tag_negation() gives a special prefix to words inside a negation scope.
+
+Example:
+
+    "not useful"
+
+can become tokens similar to:
+
+    not not_useful
+
+The scope is limited to four content tokens and is reset by punctuation.
+This prevents the baseline model from treating "good" and "not good" as
+exactly the same phrase.
+
+The preprocessing also removes many common stop words. Contrast markers
+and negators are deliberately retained because they carry sentiment
+information.
+
+
+9.5 Baseline model
+
+BaselineModel combines:
+
+    1. TfidfVectorizer
+    2. LogisticRegression
+
+TF-IDF stands for Term Frequency-Inverse Document Frequency. It gives
+higher importance to words that are frequent in one review but not common
+throughout all reviews.
+
+The vectorizer uses:
+
+    - Unigrams: individual words
+    - Bigrams: two-word combinations
+    - Up to 60,000 features
+    - The custom negation and contrast preprocessing
+
+Examples of useful bigrams might be:
+
+    very good
+    not useful
+    poor quality
+
+Logistic Regression learns the relationship between these features and
+the sentiment labels. class_weight="balanced" helps when the dataset has
+unequal numbers of positive, neutral, and negative examples.
+
+The baseline is trained from 1-to-5 ratings:
+
+    rating <= 2.5  -> Negative
+    2.5 < rating < 3.5 -> Neutral
+    rating >= 3.5  -> Positive
+
+If there are at least 50 labeled rows, the code creates a train/test
+split and reports accuracy and macro-F1. It then trains the final model
+on all available rows.
+
+
+9.6 Transformer model
+
+TransformerModel uses a pre-trained model from Hugging Face.
+
+The process is:
+
+    1. Load AutoTokenizer.
+    2. Load AutoModelForSequenceClassification.
+    3. Expand contractions.
+    4. Tokenize the reviews.
+    5. Truncate each review to 128 tokens.
+    6. Run the model in torch.no_grad() mode.
+    7. Apply softmax to obtain probabilities.
+
+torch.no_grad() is important during prediction because gradients are not
+needed. It reduces memory use and avoids unnecessary training operations.
+
+Reviews are processed in batches:
+
+    - Transformer batch size: 32
+    - Baseline batch size: 2000
+
+Batching improves memory management and allows a progress bar to be shown.
+
+The model configuration is inspected to map labels such as NEGATIVE,
+NEUTRAL, and POSITIVE into the common internal order:
+
+    column 0 = Negative
+    column 1 = Neutral
+    column 2 = Positive
+
+If a model has generic names such as LABEL_0 and LABEL_1, the code uses a
+fallback ordering.
+
+
+9.7 Contrast-aware transformer prediction
+
+The transformer first predicts the full review.
+If a contrast clause is detected, it also predicts the final clause alone.
+
+The final probability is calculated using:
+
+    final = 0.30 * full_review + 0.70 * final_clause
+
+The constant CONTRAST_WEIGHT is 0.70.
+
+This gives more influence to the clause after a word such as "but",
+because that clause frequently contains the most important conclusion.
+
+
+9.8 Global feature explanation
+
+global_features() reads the learned Logistic Regression coefficients from
+the baseline model.
+
+For each class, it sorts the feature weights and displays the top terms.
+A high positive coefficient for a class means that the term pushes the
+prediction toward that class.
+
+For transformer predictions, the application trains a small TF-IDF plus
+Logistic Regression surrogate on the transformer's predicted labels.
+This does not expose the transformer's internal neural network weights.
+It provides an approximate, human-readable summary of the words that
+separate the predicted classes in the uploaded dataset.
+
+
+9.9 LIME explanation
+
+LIME explains one prediction locally rather than describing the whole
+model.
+
+The process is:
+
+    1. Take one review.
+    2. Create many slightly modified versions by removing or changing
+       words.
+    3. Ask the selected sentiment model for probabilities for those
+       modified reviews.
+    4. Fit a simple local explanation around the original review.
+    5. Calculate the contribution of individual words to each class.
+
+The LIME sample count is controlled by the sidebar.
+More samples can make the explanation more stable but slower.
+
+highlight_html() converts the LIME word weights into colored HTML:
+
+    - Green: positive influence
+    - Red: negative influence
+    - Gray: almost no influence
+
+HTML escaping is used for review text before inserting it into the page.
+This prevents review text from being interpreted as page markup.
+
+
+10. DIFFERENCE BETWEEN THE TWO MODEL TYPES
+-------------------------------------------
+
+Baseline model:
+
+    - Learns directly from the uploaded ratings.
+    - Fast after training.
+    - Easy to understand.
+    - Works well as a local and transparent benchmark.
+    - Requires a rating column for initial training.
+
+Transformer model:
+
+    - Uses knowledge learned from a large external training corpus.
+    - Usually understands context better than a simple word-frequency
+      model.
+    - Does not require ratings in the uploaded file.
+    - Takes longer and downloads large model files initially.
+    - Uses LIME and a surrogate model for explanations.
+
+The baseline is useful for comparison. The transformer is the main
+pre-trained NLP approach.
+
+
+11. EVALUATION
+--------------
+
+When the baseline has at least 50 labeled records, the data is divided
+into:
+
+    - 80 percent training data
+    - 20 percent test data
+
+The following metrics are shown:
+
+Accuracy:
+    The percentage of test reviews classified correctly.
+
+Macro-F1:
+    The average F1 score across the sentiment classes. Macro-F1 gives
+    equal importance to each class, which is useful when classes are
+    imbalanced.
+
+The application warns that predictions on the same training file are
+optimistic. A separate test set is better for a final evaluation.
+
+
+12. IMPORTANT DESIGN DECISIONS
+------------------------------
+
+1. The app uses three common output classes even though the selected
+   transformer models may have different label formats.
+
+2. A 0.60 threshold prevents weak positive or negative predictions from
+   being shown as confident results. Such cases remain Neutral.
+
+3. The last clause after a contrast marker receives more weight because
+   it often expresses the final judgment.
+
+4. Heavy transformer imports are inside TransformerModel.__init__().
+   This keeps the baseline usable without immediately loading the
+   transformer stack.
+
+5. Streamlit cache decorators prevent repeated file parsing and repeated
+   model loading.
+
+6. Session state keeps results available during Streamlit reruns.
+
+7. The application uses both local explanations (LIME) and global
+   explanations (feature coefficients or a surrogate model).
+
+
+13. LIMITATIONS
+---------------
+
+    - Transformer predictions depend on the quality and domain of the
+      pre-trained model.
+    - The DistilBERT model is a two-class model, so it does not naturally
+      produce a true neutral probability.
+    - LIME explanations are approximations and can vary with the sample
+      count.
+    - The baseline labels ratings using fixed boundaries. Different
+      datasets may use different rating meanings.
+    - Very large files and transformer inference can take time on CPU.
+    - Reviews in languages or domains unlike the model's training data
+      may be less accurate.
+    - A held-out labeled test set is needed for a reliable final accuracy
+      estimate.
+
+
+14. HOW TO DEMONSTRATE THE PROJECT
+----------------------------------
+
+Suggested presentation demonstration:
+
+    1. Start the app with:
+
+       streamlit run app.py
+
+    2. Upload a CSV or Excel file containing a review-text column.
+
+    3. Select the text column.
+
+    4. Select the RoBERTa model and click Classify.
+
+    5. Explain the sentiment counts, probabilities, and confidence.
+
+    6. Filter the table to show only negative reviews.
+
+    7. Search for a word such as "delivery" or "quality".
+
+    8. Select one row and send it to the inspector.
+
+    9. Explain the colored LIME words:
+       green supports positive, red supports negative.
+
+   10. Open Top global features and explain the most influential terms.
+
+   11. Export the results to Excel.
+
+   12. If ratings are available, choose the baseline model, train it,
+       and discuss accuracy and macro-F1.
+
+Good example review for demonstrating contrast:
+
+    "The design is attractive but the build quality is poor."
+
+This example shows why the final clause after "but" is given extra
+importance.
+
+
+15. SHORT ORAL EXPLANATION
+--------------------------
+
+The following can be used as a short answer during the presentation:
+
+"This project is an explainable sentiment-analysis dashboard built with
+Python and Streamlit. It accepts customer reviews from CSV or Excel files
+and classifies each review as positive, neutral, or negative. The system
+provides two approaches: pre-trained transformer models such as RoBERTa
+and DistilBERT, and a transparent TF-IDF plus Logistic Regression
+baseline that can be trained from star ratings. The NLP engine expands
+contractions, handles negation for the baseline, and gives extra weight
+to the final clause after contrast words such as 'but'. The application
+shows class probabilities and confidence, and uses LIME to explain which
+words influenced an individual prediction. It also provides global
+feature summaries, filtering, searching, pagination, and Excel export.
+Streamlit caching is used so that model loading and file reading are not
+repeated unnecessarily."
+
+
+16. POSSIBLE PROFESSOR QUESTIONS
+--------------------------------
+
+Q: Why did you use both a baseline and a transformer?
+
+A: The baseline is fast and transparent, while the transformer usually
+understands context better. Comparing them demonstrates the difference
+between traditional machine learning and modern pre-trained NLP.
+
+Q: What is TF-IDF?
+
+A: TF-IDF represents text numerically. A word receives more weight when
+it is important in a document but is not equally common in every
+document.
+
+Q: Why use bigrams?
+
+A: Bigrams preserve short phrases such as "not good" and "poor quality",
+which can be more informative than individual words.
+
+Q: What is a transformer?
+
+A: A transformer is a neural-network architecture that uses attention to
+understand relationships between words and context in a sequence.
+
+Q: Why is the first run slow?
+
+A: The transformer tokenizer and model weights are downloaded and loaded
+the first time. The application caches the model afterward.
+
+Q: What is LIME?
+
+A: LIME creates perturbed versions of one input and fits a simple local
+model to estimate how individual words affect the original prediction.
+
+Q: Why is the threshold 0.60?
+
+A: It is a conservative confidence threshold. If neither positive nor
+negative probability is above 0.60, the result is left as Neutral.
+
+Q: What is macro-F1?
+
+A: Macro-F1 calculates F1 for each class and averages the class scores
+equally, so a majority class does not hide poor performance on a smaller
+class.
+
+Q: Is the explanation the same as the model's internal reasoning?
+
+A: No. LIME is a local approximation of the model's behavior around one
+review. It is useful for interpretation but should not be treated as a
+literal description of every internal neural-network operation.
+
+
+17. FINAL SUMMARY
+-----------------
+
+The project combines:
+
+    - Data upload and cleaning
+    - NLP preprocessing
+    - Traditional machine learning
+    - Pre-trained transformer inference
+    - Sentiment probability thresholds
+    - Contrast-aware prediction
+    - LIME local explanations
+    - Global feature summaries
+    - Interactive Streamlit visualization
+    - Excel export
+    - Deployment support through Docker
+
+The main educational value of the project is that it does not only
+produce a sentiment label. It also shows probabilities and explanations,
+which makes the result more useful and easier to discuss than a black-box
+prediction alone.
